@@ -28,8 +28,8 @@ add_executable(ids
     src/capture.cpp
     src/worker.cpp
     src/utils.cpp
-    src/rule_parser.cpp
-    src/rule_matcher.cpp
+    # src/test.cpp
+    src/flow_table.cpp
 
 )
 
