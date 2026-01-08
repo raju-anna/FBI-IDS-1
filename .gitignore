@@ -18,3 +18,6 @@ Makefile
 
 # OS
 .DS_Store
+
+# Temp test files
+src/test.cpp
