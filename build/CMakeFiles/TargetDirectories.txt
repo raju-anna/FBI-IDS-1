@@ -1,3 +1,0 @@
-/mnt/d/ids-from-scratch/build/CMakeFiles/ids.dir
-/mnt/d/ids-from-scratch/build/CMakeFiles/edit_cache.dir
-/mnt/d/ids-from-scratch/build/CMakeFiles/rebuild_cache.dir
