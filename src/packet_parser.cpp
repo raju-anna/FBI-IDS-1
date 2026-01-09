@@ -55,9 +55,9 @@ std::optional<ParsedPacket> parse_packet(const Packet &pkt) {
         out.payload_len = 0;
         if ((l4_off + out.l4_header_len) < caplen) out.payload_len = caplen - (l4_off + out.l4_header_len);
     } else {
-        // other protocols: we won't parse payload in day3
         return out;
     }
 
     return out;
 }
+
