@@ -12,7 +12,6 @@ std::optional<ParsedPacket> parse_packet(const Packet &pkt) {
     out.ethertype = eth->ntoh_ethertype();
 
     if (out.ethertype != 0x0800) {
-        // not IPv4; we only handle IPv4 for now
         return std::nullopt;
     }
 
@@ -60,4 +59,5 @@ std::optional<ParsedPacket> parse_packet(const Packet &pkt) {
 
     return out;
 }
+
 
