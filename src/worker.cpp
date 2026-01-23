@@ -1,5 +1,7 @@
 #include "Worker.hpp"
 #include "Packet_Parser.hpp"
+#include "Feature_Extractor.hpp"
+#include "FeaturesDictBuilder.hpp"
 #include <iostream>
 #include <iomanip>
 #include <sstream>
@@ -40,18 +42,18 @@ void Worker::operator()()
         if (!parsed_opt)
         {
             // print short hex summary for non-ip or errors
-            std::ostringstream os;
-            os << "[W" << id_ << "] ts=" << pkt.ts.tv_sec << "." << std::setw(6) << std::setfill('0') << pkt.ts.tv_usec
-               << " caplen=" << pkt.caplen << " first=";
-            size_t n = std::min<size_t>(pkt.data.size(), 12);
-            for (size_t i = 0; i < n; ++i)
-            {
-                os << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(pkt.data[i]);
-                if (i + 1 < n)
-                    os << " ";
-            }
-            os << std::dec;
-            std::cout << os.str() << std::endl;
+            // std::ostringstream os;
+            // os << "[W" << id_ << "] ts=" << pkt.ts.tv_sec << "." << std::setw(6) << std::setfill('0') << pkt.ts.tv_usec
+            //    << " caplen=" << pkt.caplen << " first=";
+            // size_t n = std::min<size_t>(pkt.data.size(), 12);
+            // for (size_t i = 0; i < n; ++i)
+            // {
+            //     os << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(pkt.data[i]);
+            //     if (i + 1 < n)
+            //         os << " ";
+            // }
+            // os << std::dec;
+            // std::cout << os.str() << std::endl;
             continue;
         }
 
@@ -146,16 +148,33 @@ void Worker::operator()()
         // 9) TEMP: Print expired flow summary
         for (const auto &f : expired_flows)
         {
-            std::cout
-                << "[FLOW EXPIRED] "
-                << f.key.src_ip << ":" << f.key.src_port
-                << " -> "
-                << f.key.dst_ip << ":" << f.key.dst_port
-                << " proto=" << static_cast<int>(f.key.protocol)
-                << " duration_us=" << f.duration_us()
-                << " packets=" << f.total_packets
-                << " bytes=" << f.total_bytes
-                << std::endl;
+            // std::cout
+            //     << "[FLOW EXPIRED] "
+            //     << f.key.src_ip << ":" << f.key.src_port
+            //     << " -> "
+            //     << f.key.dst_ip << ":" << f.key.dst_port
+            //     << " proto=" << static_cast<int>(f.key.protocol)
+            //     << " duration_us=" << f.duration_us()
+            //     << " packets=" << f.total_packets
+            //     << " bytes=" << f.total_bytes
+            //     << std::endl;
+
+            auto features = FeatureExtractor::extract(f);
+            auto dict = FeatureDictBuilder::build(features);
+
+            std::cout << "[FEATURES] ";
+
+            for (const auto &[k, v] : dict)
+            {
+                std::cout << k << " = " << v << std::endl;
+            }
+
+            
+            // for (float v : features)
+            // {
+            //     std::cout << v << " ";
+            // }
+            // std::cout << std::endl;
         }
 
         std::cout << std::endl;

@@ -5,6 +5,7 @@
 #include <limits>
 #include <chrono>
 #include <functional>
+#include <cmath>
 
 struct FlowKey
 {
@@ -69,16 +70,20 @@ struct Flow
     uint32_t min_pkt_len = std::numeric_limits<uint32_t>::max();
     uint32_t max_pkt_len = 0;
 
+    uint64_t pkt_count_for_stats = 0;
+    double pkt_len_mean = 0.0;
+    double pkt_len_M2 = 0.0;
+
     uint32_t syn_count = 0;
     uint32_t ack_count = 0;
     uint32_t fin_count = 0;
     uint32_t rst_count = 0;
     uint32_t psh_count = 0;
 
-    Flow(const FlowKey& k, uint64_t ts_us)
-    : key(k),
-      start_ts_us(ts_us),
-      last_seen_ts_us(ts_us) {}
+    Flow(const FlowKey &k, uint64_t ts_us)
+        : key(k),
+          start_ts_us(ts_us),
+          last_seen_ts_us(ts_us) {}
 
     void update(uint64_t ts_us,
                 uint32_t pkt_len,
@@ -94,30 +99,56 @@ struct Flow
         total_bytes += pkt_len;
         sum_pkt_len += pkt_len;
 
-        if (pkt_len < min_pkt_len) min_pkt_len = pkt_len;
-        if (pkt_len > max_pkt_len) max_pkt_len = pkt_len;
+        if (pkt_len < min_pkt_len)
+            min_pkt_len = pkt_len;
+        if (pkt_len > max_pkt_len)
+            max_pkt_len = pkt_len;
 
-        if (forward) {
+        if (forward)
+        {
             fwd_pkts++;
             fwd_bytes += pkt_len;
-        } else {
+        }
+        else
+        {
             bwd_pkts++;
             bwd_bytes += pkt_len;
         }
 
-        if (syn) syn_count++;
-        if (ack) ack_count++;
-        if (fin) fin_count++;
-        if (rst) rst_count++;
-        if (psh) psh_count++;
+        pkt_count_for_stats++;
+        double x = static_cast<double>(pkt_len);
+        double delta = x - pkt_len_mean;
+        pkt_len_mean += delta / pkt_count_for_stats;
+        double delta2 = x - pkt_len_mean;
+        pkt_len_M2 += delta * delta2;
+
+        if (syn)
+            syn_count++;
+        if (ack)
+            ack_count++;
+        if (fin)
+            fin_count++;
+        if (rst)
+            rst_count++;
+        if (psh)
+            psh_count++;
     }
 
-    uint64_t duration_us() const {
+    uint64_t duration_us() const
+    {
         return last_seen_ts_us - start_ts_us;
     }
 
-    double mean_pkt_len() const {
-        if (total_packets == 0) return 0.0;
+    double mean_pkt_len() const
+    {
+        if (total_packets == 0)
+            return 0.0;
         return static_cast<double>(sum_pkt_len) / total_packets;
+    }
+
+    double packet_len_stddev() const {
+        if (pkt_count_for_stats == 0) return 0.0;
+        double variance = pkt_len_M2 / pkt_count_for_stats; // population variance
+        return std::sqrt(variance);
     }
 };

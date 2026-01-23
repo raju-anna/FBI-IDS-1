@@ -30,6 +30,8 @@ add_executable(ids
     src/utils.cpp
     # src/test.cpp
     src/flow_table.cpp
+    src/feature_extractor.cpp
+    src/featuresdictbuilder.cpp
 
 )
 
