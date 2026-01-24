@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "features": [
+    "Flow Duration",
+    "Tot Fwd Pkts",
+    "Tot Bwd Pkts",
+    "Flow Byts/s",
+    "Flow Pkts/s",
+    "Fwd Pkt Len Mean",
+    "Bwd Pkt Len Mean",
+    "Pkt Len Std",
+    "Pkt Size Avg"
+  ]
+}

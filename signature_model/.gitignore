@@ -1,0 +1,65 @@
+# =========================
+# Python bytecode & caches
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+
+# =========================
+# Virtual environments
+# =========================
+venv/
+.env/
+.venv/
+
+# =========================
+# Jupyter notebooks
+# =========================
+.ipynb_checkpoints/
+*.ipynb
+
+# =========================
+# Data files (raw/processed)
+# =========================
+data/
+*.csv
+*.parquet
+*.feather
+*.h5
+*.npz
+
+# =========================
+# Trained models & artifacts
+# =========================
+artifacts/
+*.pkl
+*.joblib
+*.h5
+*.onnx
+
+# =========================
+# Logs & outputs
+# =========================
+logs/
+outputs/
+runs/
+*.log
+
+# =========================
+# OS / editor junk
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.swp
+*~
