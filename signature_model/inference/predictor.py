@@ -43,6 +43,9 @@ class SignatureIDSPredictor:
         # if confidence < threshold:
         #     return None  # Suppress weak predictions
 
+        if pred == 0:
+            return None
+
         label_info = self.labels[str(pred)]
 
         return {
