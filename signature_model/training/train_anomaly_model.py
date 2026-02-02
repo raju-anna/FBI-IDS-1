@@ -17,7 +17,7 @@ ARTIFACT_DIR = Path("artifacts")
 ARTIFACT_DIR.mkdir(exist_ok=True)
 
 DATA_PATH = Path("data/cleaned_data_sampled.csv")
-FEATURE_PATH = Path("config/features_v1.json")
+FEATURE_PATH = Path("config/features_v2.json")
 
 def load_feature_schema():
     with open(FEATURE_PATH) as f:

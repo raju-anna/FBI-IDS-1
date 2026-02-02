@@ -1,29 +1,32 @@
+import json
 import joblib
 import pandas as pd
-import json
-from pathlib import Path
+import numpy as np
 
-MODEL_PATH = Path("artifacts/anomaly_model_v0.pkl")
-FEATURE_PATH = Path("config/features_v1.json")
+MODEL_PATH = "artifacts/anomaly_model_v2_tuned.joblib"
+FEATURES_PATH = "config/features_v2.json"
 
 
-class AnomalyDetector :
-
+class AnomalyDetector:
     def __init__(self):
-        self.preprocessing, self.model = joblib.load(MODEL_PATH)
-
-        with open(FEATURE_PATH) as f:
+        with open(FEATURES_PATH) as f:
             self.features = json.load(f)["features"]
 
-    def detect(self,flow:dict):
+        # Load ONLY the model (no preprocessing pipeline)
+        self.model = joblib.load(MODEL_PATH)
+
+    def detect(self, flow: dict):
+        # Build DataFrame with correct feature order
         df = pd.DataFrame([flow])[self.features]
-        X = self.preprocessing.transform(df)
 
+        # Inline preprocessing (must match training)
+        df = df.fillna(df.median())
 
-        score = self.model.decision_function(X)[0]
-        is_anamolous = self.model.predict(X)[0] == -1
+        # Isolation Forest anomaly score
+        score = self.model.decision_function(df)[0]
+        is_anomalous = score < 0
 
         return {
-            "anomaly_score" : float(score),
-            "is_anomalous" : bool(is_anamolous)
+            "anomaly_score": float(score),
+            "is_anomalous": bool(is_anomalous)
         }

@@ -1,29 +1,63 @@
 import sys
 from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-sys.path.append(str(PROJECT_ROOT))
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 from inference.predictor import SignatureIDSPredictor
 
-# Load one sample from dataset
-df = pd.read_csv("data/cleaned_data_sampled.csv", on_bad_lines="skip", low_memory=False)
-sample = df.iloc[0]
+print("\n==============================")
+print(" SIGNATURE IDS v2 SANITY TEST ")
+print("==============================\n")
 
-flow = {
-    "Flow Duration" : 900000,
-    "Tot Fwd Pkts": 310,
-    "Tot Bwd Pkts": 295,
-    "Flow Byts/s" : 155000,
-    "Flow Pkts/s" : 670,
-    "Fwd Pkt Len Mean" :  85,
-    "Bwd Pkt Len Mean" : 90,
-    "Pkt Len Std" : 22,
-    "Pkt Size Avg" : 88
-}
+sig = SignatureIDSPredictor()
 
-predictor = SignatureIDSPredictor()
-alert = predictor.predict(flow)
+df = pd.read_csv(
+    "data/cleaned_data_sampled.csv",
+    on_bad_lines="skip",
+    low_memory=False
+)
 
-print(alert)
+with open("config/features_v2.json") as f:
+    import json
+    FEATURES = json.load(f)["features"]
+
+# ----------------------------
+# Test 1: CIC Benign
+# ----------------------------
+benign = df[df["Label"] == 0].sample(1).iloc[0]
+benign_flow = benign[FEATURES].to_dict()
+
+benign_result = sig.predict(benign_flow)
+
+print("Test 1 — CIC Benign Flow")
+print("Expected: None")
+print("Output  :", benign_result)
+print("-" * 50)
+
+# ----------------------------
+# Test 2: CIC Attack
+# ----------------------------
+attack = df[df["Label"] != 0].sample(1).iloc[0]
+attack_flow = attack[FEATURES].to_dict()
+
+attack_result = sig.predict(attack_flow)
+
+print("Test 2 — CIC Attack Flow")
+print("True Label:", attack["Label"])
+print("Expected : Signature alert")
+print("Output   :", attack_result)
+print("-" * 50)
+
+# ----------------------------
+# Test 3: Weak Random Flow
+# ----------------------------
+weak_flow = {f: 0 for f in FEATURES}
+
+weak_result = sig.predict(weak_flow)
+
+print("Test 3 — Weak Zero Flow")
+print("Expected: None (low confidence)")
+print("Output  :", weak_result)
+print("-" * 50)
+
+print("\n[OK] Signature IDS v2 tests complete.")

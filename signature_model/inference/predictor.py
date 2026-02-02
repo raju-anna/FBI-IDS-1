@@ -4,7 +4,7 @@ import pandas as pd
 from pathlib import Path
 
 MODEL_PATH = Path("artifacts/signature_model_v0.pkl")
-FEATURE_PATH = Path("config/features_v1.json")
+FEATURE_PATH = Path("config/features_v2.json")
 LABEL_PATH = Path("config/labels_v1.json")
 
 DEFAULT_THRESHOLD = 0.85

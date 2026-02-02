@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 
 MODEL_PATH = Path("artifacts/signature_model_v0.pkl")
-FEATURE_PATH = Path("config/features_v1.json")
+FEATURE_PATH = Path("config/features_v2.json")
 
 pipeline = joblib.load(MODEL_PATH)
 

@@ -5,41 +5,33 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 import pandas as pd
 from inference.fusion_ids import FusionIDS
 
-# ----------------------------
-# Load Fusion IDS
-# ----------------------------
+print("\n==============================")
+print(" FUSION IDS v2 — FULL TEST SUITE ")
+print("==============================\n")
+
 fusion_ids = FusionIDS()
 
-# ----------------------------
-# Load CIC dataset
-# ----------------------------
 df = pd.read_csv(
     "data/cleaned_data_sampled.csv",
     on_bad_lines="skip",
     low_memory=False
 )
 
-feature_cols = [
-    "Flow Duration",
-    "Tot Fwd Pkts",
-    "Tot Bwd Pkts",
-    "Flow Byts/s",
-    "Flow Pkts/s",
-    "Fwd Pkt Len Mean",
-    "Bwd Pkt Len Mean",
-    "Pkt Len Std",
-    "Pkt Size Avg",
-]
+with open("config/features_v2.json") as f:
+    import json
+    FEATURES = json.load(f)["features"]
 
-print("\n==============================")
-print(" FUSION IDS SANITY TEST ")
-print("==============================\n")
+# ==================================================
+# PART 1 — SINGLE FLOW TESTS
+# ==================================================
+
+print("=== PART 1 — SINGLE FLOW TESTS ===\n")
 
 # ----------------------------
-# Test 1: CIC Benign Sample
+# Test 1: CIC Benign
 # ----------------------------
-benign_sample = df[df["Label"] == 0].sample(1).iloc[0]
-benign_flow = benign_sample[feature_cols].to_dict()
+benign = df[df["Label"] == 0].sample(1, random_state=42).iloc[0]
+benign_flow = benign[FEATURES].to_dict()
 
 benign_alert = fusion_ids.analyze_flow(benign_flow)
 
@@ -48,21 +40,19 @@ print("Expected: None")
 print("Output  :", benign_alert)
 print("-" * 50)
 
-
 # ----------------------------
-# Test 2: CIC Attack Sample
+# Test 2: CIC Attack
 # ----------------------------
-attack_sample = df[df["Label"] != 0].sample(1).iloc[0]
-attack_flow = attack_sample[feature_cols].to_dict()
+attack = df[df["Label"] != 0].sample(1, random_state=42).iloc[0]
+attack_flow = attack[FEATURES].to_dict()
 
 attack_alert = fusion_ids.analyze_flow(attack_flow)
 
 print("Test 2 — CIC Attack Flow")
-print("True Label:", attack_sample["Label"])
-print("Expected : Signature+Anomaly or SignatureOnly")
+print("True Label:", attack["Label"])
+print("Expected : SignatureOnly or Signature+Anomaly")
 print("Output   :", attack_alert)
 print("-" * 50)
-
 
 # ----------------------------
 # Test 3: Weird Synthetic Flow (OOD)
@@ -71,53 +61,116 @@ weird_flow = {
     "Flow Duration": 99999999,
     "Tot Fwd Pkts": 2,
     "Tot Bwd Pkts": 5000,
+    "TotLen Fwd Pkts": 40,
+    "TotLen Bwd Pkts": 800000,
     "Flow Byts/s": 1,
     "Flow Pkts/s": 999999,
-    "Fwd Pkt Len Mean": 9999,
-    "Bwd Pkt Len Mean": 1,
-    "Pkt Len Std": 999,
-    "Pkt Size Avg": 888,
+    "Fwd Pkts/s": 1,
+    "Bwd Pkts/s": 999999,
+    "Fwd Header Len": 200,
+    "Bwd Header Len": 9000,
+    "Fwd Seg Size Min": 1,
+    "Bwd Seg Size Avg": 2000,
+    "Fwd IAT Tot": 99999999,
+    "Fwd IAT Mean": 9999999,
+    "Fwd IAT Max": 9999999,
+    "Fwd IAT Min": 1,
+    "Flow IAT Mean": 9999999,
+    "Flow IAT Max": 9999999,
+    "Flow IAT Min": 1,
+    "Init Fwd Win Byts": 65535,
+    "Init Bwd Win Byts": 1,
     "Subflow Fwd Pkts": 2,
-    "Subflow Bwd Pkts": 5000
+    "Subflow Bwd Pkts": 5000,
+    "Bwd Pkt Len Mean": 1,
+    "Bwd Pkt Len Max": 1500,
+    "Pkt Len Std": 999,
+    "Pkt Len Var": 888888
 }
 
 weird_alert = fusion_ids.analyze_flow(weird_flow)
 
 print("Test 3 — Weird Synthetic Flow (OOD)")
-print("Expected: AnomalyOnly alert")
+print("Expected: AnomalyOnly")
 print("Output  :", weird_alert)
 print("-" * 50)
 
+# ==================================================
+# PART 2 — BATCH FUSION TEST
+# ==================================================
 
-# ----------------------------
-# Test 4: Batch Test (Stats)
-# ----------------------------
-print("\nTest 4 — Batch Fusion Behavior on CIC Samples\n")
+print("\n=== PART 2 — BATCH FUSION TEST ===\n")
 
-sample_df = df.sample(100)
+N_BENIGN = 200
+N_ATTACK = 200
 
-sig_only = 0
-anom_only = 0
-both = 0
-none = 0
+benign_df = df[df["Label"] == 0].sample(N_BENIGN, random_state=7)
+attack_df = df[df["Label"] != 0].sample(N_ATTACK, random_state=7)
 
-for _, row in sample_df.iterrows():
-    flow = row[feature_cols].to_dict()
+batch_df = pd.concat([benign_df, attack_df]).sample(frac=1, random_state=7)
+
+stats = {
+    "benign": {
+        "None": 0,
+        "SignatureOnly": 0,
+        "AnomalyOnly": 0,
+        "Signature+Anomaly": 0
+    },
+    "attack": {
+        "None": 0,
+        "SignatureOnly": 0,
+        "AnomalyOnly": 0,
+        "Signature+Anomaly": 0
+    }
+}
+
+for _, row in batch_df.iterrows():
+    flow = row[FEATURES].to_dict()
+    true_type = "benign" if row["Label"] == 0 else "attack"
+
     alert = fusion_ids.analyze_flow(flow)
 
     if alert is None:
-        none += 1
-    elif alert.get("fusion") == "SignatureOnly":
-        sig_only += 1
-    elif alert.get("fusion") == "AnomalyOnly":
-        anom_only += 1
-    elif alert.get("fusion") == "Signature+Anomaly":
-        both += 1
+        stats[true_type]["None"] += 1
+    else:
+        fusion_type = alert.get("fusion", "Unknown")
+        if fusion_type not in stats[true_type]:
+            fusion_type = "Unknown"
+        stats[true_type][fusion_type] += 1
 
-print("Out of 100 random CIC flows:")
-print("  None                :", none)
-print("  SignatureOnly       :", sig_only)
-print("  AnomalyOnly         :", anom_only)
-print("  Signature+Anomaly   :", both)
+# ----------------------------
+# Print batch results
+# ----------------------------
+print("=== Batch Composition ===")
+print(f"Benign : {N_BENIGN}")
+print(f"Attack : {N_ATTACK}")
+print()
 
-print("\n[OK] Fusion IDS tests complete.")
+print("=== Fusion IDS Behavior on Benign ===")
+for k, v in stats["benign"].items():
+    print(f"{k:20s}: {v:4d} / {N_BENIGN}")
+
+print("\n=== Fusion IDS Behavior on Attacks ===")
+for k, v in stats["attack"].items():
+    print(f"{k:20s}: {v:4d} / {N_ATTACK}")
+
+# ----------------------------
+# Derived metrics
+# ----------------------------
+benign_fp = (
+    stats["benign"]["SignatureOnly"]
+    + stats["benign"]["AnomalyOnly"]
+    + stats["benign"]["Signature+Anomaly"]
+)
+
+attack_detected = (
+    stats["attack"]["SignatureOnly"]
+    + stats["attack"]["AnomalyOnly"]
+    + stats["attack"]["Signature+Anomaly"]
+)
+
+print("\n=== Derived IDS Metrics ===")
+print(f"Benign false positives: {benign_fp} / {N_BENIGN}  ({benign_fp / N_BENIGN:.2%})")
+print(f"Attack detection rate : {attack_detected} / {N_ATTACK}  ({attack_detected / N_ATTACK:.2%})")
+
+print("\n[OK] Fusion IDS v2 full test suite complete.")
