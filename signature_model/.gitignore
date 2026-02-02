@@ -26,7 +26,11 @@ venv/
 # Data files (raw/processed)
 # =========================
 data/
-*.csv
+cd /mnt/d
+cd IEEE-Project/
+cd sample-blockchain-from\ scratch/
+cd Testing/
+source venv/bin/activate*.csv
 *.parquet
 *.feather
 *.h5
@@ -63,3 +67,6 @@ Thumbs.db
 *.tmp
 *.swp
 *~
+
+
+Testing/
