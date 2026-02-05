@@ -1,0 +1,44 @@
+############################
+# Python bytecode (ANY depth)
+############################
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+############################
+# Virtual environments
+############################
+venv/
+**/venv/
+.venv/
+**/.venv/
+
+############################
+# Jupyter
+############################
+.ipynb_checkpoints/
+
+############################
+# IDE / OS junk
+############################
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+
+############################
+# Blockchain / project-specific
+############################
+data/
+keys/
+logs/
+cache/
+artifacts/
+
+############################
+# Allow important notebooks
+############################
+!Implementation/Block_Chain\ codebase.ipynb
