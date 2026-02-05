@@ -122,7 +122,6 @@ std::optional<ParsedPacket> parse_packet(const Packet &pkt) {
         out.is_other_l4 = true;
         out.has_ports = false;
         out.l4_header_len = 0;
-        // payload already set correctly after IP header
     }
 
     return out;
