@@ -11,21 +11,18 @@ print(">>> run_node.py started")
 node_id = int(sys.argv[1])
 config = get_config(node_id)
 
-blockchain = IDSBlockchain()
+total_nodes = len(config["peers"]) + 1
 
-pbft = PBFT_Node(
-    Node_Id=node_id,
-    Total_Nodes=4,
-    F=1,
-    ids_model=lambda alert: True  # dummy IDS
-)
+blockchain = IDSBlockchain()
 
 node = Node(
     node_id=node_id,
     port=config["port"],
     peers=config["peers"],
-    blockchain=blockchain,
-    pbft_node=pbft
+    total_nodes=total_nodes,
+    F = 1,
+
+    blockchain=blockchain
 )
 
 node.start()

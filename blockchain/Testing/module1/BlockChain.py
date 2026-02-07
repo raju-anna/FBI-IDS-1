@@ -6,37 +6,7 @@ from ecdsa import SigningKey, VerifyingKey, SECP256k1, BadSignatureError
 from collections import defaultdict
 import copy
 
-
-class CryptoUtils:
-    
-    @staticmethod
-    def sha256(data: str) -> str:
-        return hashlib.sha256(data.encode('utf-8')).hexdigest()
-    
-    @staticmethod
-    def generate_keypair() -> Tuple[SigningKey, VerifyingKey]:
-        private_key = SigningKey.generate(curve=SECP256k1)
-        public_key = private_key.get_verifying_key()
-        return private_key, public_key
-    
-    @staticmethod
-    def sign_data(data: str, private_key: SigningKey) -> bytes:
-        return private_key.sign(data.encode('utf-8'))
-    
-    @staticmethod
-    def verify_signature(data: str, signature: bytes, 
-                        public_key: VerifyingKey) -> bool:
-        try:
-            public_key.verify(signature, data.encode('utf-8'))
-            return True
-        except BadSignatureError:
-            return False
-    
-    @staticmethod
-    def public_key_to_address(public_key: VerifyingKey) -> str:
-        pubkey_bytes = public_key.to_string()
-        hash_result = hashlib.sha256(pubkey_bytes).hexdigest()
-        return '0x' + hash_result[-40:]
+from .CryptoUtils import CryptoUtils
 
 
 class MerkleTree:
