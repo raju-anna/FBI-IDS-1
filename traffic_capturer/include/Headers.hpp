@@ -98,6 +98,3 @@ inline std::string format_mac(const uint8_t mac[6]) {
     os << std::dec;
     return os.str();
 }
-
-
-

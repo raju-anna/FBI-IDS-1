@@ -1,17 +1,23 @@
 #include "Queue.hpp"
 
-ThreadSafeQueue::ThreadSafeQueue(): closed_(false) {}
+ThreadSafeQueue::ThreadSafeQueue()
+    : closed_(false), dropped_count_(0) {}
 
 ThreadSafeQueue::~ThreadSafeQueue() {
     close();
 }
 
-void ThreadSafeQueue::push(Packet &&p) {
+bool ThreadSafeQueue::push(Packet &&p) {
     {
         std::lock_guard<std::mutex> lk(mtx_);
+        if (q_.size() >= MAX_SIZE) {
+            dropped_count_++;
+            return false;  // drop packet instead of growing forever
+        }
         q_.push_back(std::move(p));
     }
     cv_.notify_one();
+    return true;
 }
 
 bool ThreadSafeQueue::pop(Packet &out) {

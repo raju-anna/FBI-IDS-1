@@ -1,183 +1,132 @@
 #include "Worker.hpp"
 #include "Packet_Parser.hpp"
 #include "Feature_Extractor.hpp"
-#include "FeaturesDictBuilder.hpp"
+#include "Headers.hpp"
 #include <iostream>
 #include <iomanip>
-#include <sstream>
 
-static inline bool is_printable_ascii(char c)
-{
-    unsigned char uc = static_cast<unsigned char>(c);
-    return (uc >= 0x20 && uc <= 0x7E); // basic printable range
-}
-
-// helper: sanitize snippet (replace non-printable with '.')
-static std::string sanitize_snippet(const std::string &s)
-{
-    std::string out;
-    out.reserve(s.size());
-    for (unsigned char c : s)
-    {
-        if (c >= 0x20 && c <= 0x7E)
-            out.push_back(static_cast<char>(c));
-        else
-            out.push_back('.');
-    }
-    return out;
-}
-
-Worker::Worker(ThreadSafeQueue &q, int id, std::atomic<bool> &running_flag, FlowTable &flow_table)
-    : queue_(q), id_(id), running_(running_flag), flow_table_(flow_table) {}
+Worker::Worker(ThreadSafeQueue &q, int id,
+               std::atomic<bool> &running_flag,
+               FlowTable &flow_table)
+    : queue_(q), id_(id), running_(running_flag), flow_table_(flow_table)
+{}
 
 void Worker::operator()()
 {
-    while (running_.load())
-    {
+    ParsedPacket parsed;   // reused every iteration — no per-packet alloc
+
+    while (running_.load()) {
         Packet pkt;
-        bool ok = queue_.pop(pkt);
-        if (!ok)
-            break;
-        auto parsed_opt = parse_packet(pkt);
-        if (!parsed_opt)
-        {
-            // print short hex summary for non-ip or errors
-            // std::ostringstream os;
-            // os << "[W" << id_ << "] ts=" << pkt.ts.tv_sec << "." << std::setw(6) << std::setfill('0') << pkt.ts.tv_usec
-            //    << " caplen=" << pkt.caplen << " first=";
-            // size_t n = std::min<size_t>(pkt.data.size(), 12);
-            // for (size_t i = 0; i < n; ++i)
-            // {
-            //     os << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(pkt.data[i]);
-            //     if (i + 1 < n)
-            //         os << " ";
-            // }
-            // os << std::dec;
-            // std::cout << os.str() << std::endl;
-            continue;
-        }
+        if (!queue_.pop(pkt)) break;   // queue closed and empty
 
-        // auto &p = *parsed_opt;
+        // ── Parse ─────────────────────────────────────────────────────────
+        if (!parse_packet(pkt, parsed)) continue;
 
-        // if (p.payload == nullptr || p.payload_len == 0) {
-        //     // nothing to match
-        //     continue;
-        // }
-
-        // std::string payload(reinterpret_cast<const char*>(p.payload), p.payload_len);
-
-        // const size_t MAX_SNIPPET = 80;
-        // std::string snippet;
-        // if (payload.size() == 0) {
-        //     snippet = "";
-        // } else if (payload.size() <= MAX_SNIPPET) {
-        //     snippet = sanitize_snippet(payload);
-        // } else {
-        //     // take the first MAX_SNIPPET bytes (you could center around match offset later)
-        //     snippet = sanitize_snippet(payload.substr(0, MAX_SNIPPET));
-        // }
-
-        // std::cout << "[W" << id_ << "] "
-        //     << "src=" << p.src_ip << " dst=" << p.dst_ip
-        //     << " sport=" << p.src_port << " dport=" << p.dst_port
-        //     << " payload_len=" << p.payload_len
-        //     << std::endl;
-
-        // std::cout << "[W" << id_ << "] " ;
-        // std::cout << "ETH type=0x" << std::hex << p.ethertype << std::dec;
-        // if (p.is_ipv4) {
-        //     std::cout << " IPv4 src=" << p.src_ip << " dst=" << p.dst_ip << " proto=" << int(p.ip_proto);
-        //     if (p.is_tcp) {
-        //         std::cout << " TCP " << p.src_port << "->" << p.dst_port << " payload=" << p.payload_len;
-        //     } else if (p.is_udp) {
-        //         std::cout << " UDP " << p.src_port << "->" << p.dst_port << " payload=" << p.payload_len;
-        //     }
-        // }
-
-        const ParsedPacket &parsed = parsed_opt.value();
-
-        // 2) Build FlowKey
-        FlowKey key(
-            parsed.src_ip,
-            parsed.dst_ip,
-            parsed.src_port,
-            parsed.dst_port,
-            parsed.ip_proto);
-
-        // 3) Timestamp in microseconds
-        uint64_t ts_us =
-            static_cast<uint64_t>(pkt.ts.tv_sec) * 1000000ULL +
+        // ── Timestamp µs ──────────────────────────────────────────────────
+        const uint64_t ts_us =
+            static_cast<uint64_t>(pkt.ts.tv_sec)  * 1'000'000ULL +
             static_cast<uint64_t>(pkt.ts.tv_usec);
 
-        // 4) Get or create flow
-        Flow &flow = flow_table_.get_or_create_flow(key, ts_us);
-
-        // 5) Determine direction
-        bool forward =
-            (parsed.src_ip == flow.key.src_ip) &&
-            (parsed.src_port == flow.key.src_port);
-
-        // 6) Extract packet metadata
-        uint32_t pkt_len = pkt.caplen;
-
-        bool syn = false, ack = false, fin = false, rst = false, psh = false;
-        // if (parsed.tcp != nullptr)
-        // {
-        //     uint8_t flags = parsed.tcp->th_flags;
-        //     syn = flags & TH_SYN;
-        //     ack = flags & TH_ACK;
-        //     fin = flags & TH_FIN;
-        //     rst = flags & TH_RST;
-        //     psh = flags & TH_PUSH;
-        // }
-
-        // 7) Update flow
-        flow.update(
-            ts_us,
-            pkt_len,
-            forward,
-            syn,
-            ack,
-            fin,
-            rst,
-            psh);
-
-        // 8) Expire idle flows
-        auto expired_flows = flow_table_.expire_idle_flows(ts_us);
-
-        // 9) TEMP: Print expired flow summary
-        for (const auto &f : expired_flows)
-        {
-            // std::cout
-            //     << "[FLOW EXPIRED] "
-            //     << f.key.src_ip << ":" << f.key.src_port
-            //     << " -> "
-            //     << f.key.dst_ip << ":" << f.key.dst_port
-            //     << " proto=" << static_cast<int>(f.key.protocol)
-            //     << " duration_us=" << f.duration_us()
-            //     << " packets=" << f.total_packets
-            //     << " bytes=" << f.total_bytes
-            //     << std::endl;
-
-            auto features = FeatureExtractor::extract(f);
-            auto dict = FeatureDictBuilder::build(features);
-
-            std::cout << "[FEATURES] ";
-
-            for (const auto &[k, v] : dict)
-            {
-                std::cout << k << " = " << v << std::endl;
-            }
-
-            
-            // for (float v : features)
-            // {
-            //     std::cout << v << " ";
-            // }
-            // std::cout << std::endl;
+        // ── FlowKey ───────────────────────────────────────────────────────
+        // Canonical key: lower IP first so both directions map to same flow.
+        // If src < dst (numerically), src is "forward" by definition.
+        bool forward;
+        FlowKey key;
+        if (parsed.src_ip < parsed.dst_ip ||
+           (parsed.src_ip == parsed.dst_ip && parsed.src_port <= parsed.dst_port)) {
+            key     = FlowKey(parsed.src_ip, parsed.dst_ip,
+                              parsed.src_port, parsed.dst_port,
+                              parsed.ip_proto);
+            forward = true;
+        } else {
+            key     = FlowKey(parsed.dst_ip, parsed.src_ip,
+                              parsed.dst_port, parsed.src_port,
+                              parsed.ip_proto);
+            forward = false;
         }
 
-        std::cout << std::endl;
+        // ── Build PacketMeta — single struct carries everything ───────────
+        const PacketMeta meta = parsed.to_meta(ts_us, forward);
+
+        // ── Update flow (create-or-update atomically under one lock) ──────
+        flow_table_.update_flow(key, meta);
+
+        // ── Expire idle flows every 1 000 packets (throttled) ─────────────
+        if (++packet_count_ % 1000 == 0) {
+            std::vector<Flow> expired = flow_table_.expire_idle_flows(ts_us);
+            print_expired(expired);
+        }
     }
-    // worker exiting
+
+    std::cout << "[W" << id_ << "] exiting\n";
+}
+
+void Worker::print_expired(std::vector<Flow> &expired)
+{
+    static const char* const NAMES[38] = {
+        /*  0 */ "Bwd Packet Length Std",
+        /*  1 */ "Bwd Packet Length Min",
+        /*  2 */ "Average Packet Size",
+        /*  3 */ "Init_Win_bytes_backward",
+        /*  4 */ "Bwd Packet Length Mean",
+        /*  5 */ "Init_Win_bytes_forward",
+        /*  6 */ "PSH Flag Count",
+        /*  7 */ "Bwd Packets/s",
+        /*  8 */ "Bwd Header Length",
+        /*  9 */ "Avg Bwd Segment Size",
+        /* 10 */ "Packet Length Mean",
+        /* 11 */ "Packet Length Variance",
+        /* 12 */ "Fwd Header Length",
+        /* 13 */ "Bwd Packet Length Max",
+        /* 14 */ "min_seg_size_forward",
+        /* 15 */ "ACK Flag Count",
+        /* 16 */ "act_data_pkt_fwd",
+        /* 17 */ "Fwd Header Length.1",
+        /* 18 */ "Packet Length Std",
+        /* 19 */ "Total Length of Fwd Packets",
+        /* 20 */ "Fwd PSH Flags",
+        /* 21 */ "Fwd Packet Length Max",
+        /* 22 */ "Fwd IAT Mean",
+        /* 23 */ "Total Fwd Packets",
+        /* 24 */ "Flow IAT Max",
+        /* 25 */ "Subflow Fwd Bytes",
+        /* 26 */ "Fwd IAT Max",
+        /* 27 */ "Total Length of Bwd Packets",
+        /* 28 */ "Max Packet Length",
+        /* 29 */ "Subflow Bwd Packets",
+        /* 30 */ "Min Packet Length",
+        /* 31 */ "Total Backward Packets",
+        /* 32 */ "Bwd IAT Total",
+        /* 33 */ "Idle Max",
+        /* 34 */ "Fwd IAT Min",
+        /* 35 */ "Fwd Packet Length Mean",
+        /* 36 */ "URG Flag Count",
+        /* 37 */ "Subflow Fwd Packets",
+    };
+
+    for (Flow &f : expired) {
+        const auto features = FeatureExtractor::extract(f);
+
+        // ── Flow header ───────────────────────────────────────────────────
+        std::cout << "\n[W" << id_ << "] ══════════════ FLOW EXPIRED ══════════════\n"
+                  << "  proto     = " << static_cast<int>(f.key.protocol) << "\n"
+                  << "  fwd_pkts  = " << f.volume.total_fwd_packets() << "\n"
+                  << "  bwd_pkts  = " << f.volume.total_bwd_packets() << "\n"
+                  << "  bytes     = " << f.total_bytes() << "\n"
+                  << "  dur_us    = " << f.duration_us() << "\n"
+                  << "  ┌─────┬──────────────────────────────────┬─────────────────┐\n"
+                  << "  │ Idx │ Feature Name                     │ Value           │\n"
+                  << "  ├─────┼──────────────────────────────────┼─────────────────┤\n";
+
+        for (size_t i = 0; i < features.size(); ++i) {
+            std::cout << "  │ "
+                      << std::setw(3) << std::right << i        << " │ "
+                      << std::setw(32) << std::left  << NAMES[i] << " │ "
+                      << std::setw(15) << std::right
+                      << std::fixed << std::setprecision(4) << features[i]
+                      << " │\n";
+        }
+
+        std::cout << "  └─────┴──────────────────────────────────┴─────────────────┘\n";
+    }
 }
