@@ -1,0 +1,71 @@
+{
+  "label_column": "Label",
+  "label_map": {
+    "Benign": 0,
+    "FTP-BruteForce": 1,
+    "SSH-Bruteforce": 1,
+    "Brute Force -Web": 1,
+    "Brute Force -XSS": 1,
+    "DoS attacks-GoldenEye": 2,
+    "DoS attacks-Slowloris": 2,
+    "DoS attacks-SlowHTTPTest": 2,
+    "DoS attacks-Hulk": 2,
+    "DDoS attacks-LOIC-HTTP": 3,
+    "DDOS attack-LOIC-UDP": 3,
+    "DDOS attack-HOIC": 3,
+    "Bot": 4,
+    "SQL Injection": 5
+  },
+  "label_names": {
+    "0": {
+      "name": "Benign",
+      "family": "Normal",
+      "severity": "None"
+    },
+    "1": {
+      "name": "BruteForce",
+      "family": "BruteForce",
+      "severity": "High"
+    },
+    "2": {
+      "name": "DoS",
+      "family": "DoS",
+      "severity": "Critical"
+    },
+    "3": {
+      "name": "DDoS",
+      "family": "DDoS",
+      "severity": "Critical"
+    },
+    "4": {
+      "name": "Bot",
+      "family": "Malware",
+      "severity": "Critical"
+    },
+    "5": {
+      "name": "WebAttack",
+      "family": "WebAttack",
+      "severity": "Critical"
+    }
+  },
+  "junk_labels": [
+    "Label"
+  ],
+  "class_counts_reference": {
+    "0": 13484708,
+    "1": 381790,
+    "2": 654300,
+    "3": 1263933,
+    "4": 286191,
+    "5": 87
+  },
+  "notes": {
+    "rare_classes": {
+      "6": "Only 87 raw samples (SQL Injection only) \u2014 heavy SMOTE required in step4_split.py"
+    },
+    "column_mismatch": "02-20-2018.csv has 84 cols with Flow ID, Src IP, Src Port, Dst IP \u2014 step1_merge.py drops these to align all files to 80 cols",
+    "junk_rows": "02-16-2018.csv, 02-28-2018.csv, 03-01-2018.csv contain duplicate header rows with value 'Label' \u2014 dropped in step2_clean.py",
+    "infiltration_removed": "Class 5 (Infiltration) removed from signature model \u2014 handled entirely by Isolation Forest anomaly model in Fusion layer",
+    "class_remapping": "Infiltration removed \u2014 WebAttack remapped from 6 to 5. Final classes: 0=Benign, 1=BruteForce, 2=DoS, 3=DDoS, 4=Bot, 5=WebAttack"
+  }
+}
