@@ -1,27 +1,27 @@
-import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-
-
-from inference.predictor import SignatureIDSPredictor
-from inference.anomaly_predictor import AnomalyDetector
+from inference.signature_predictor import SignaturePredictor
+from inference.anomaly_detector import AnomalyPredictor
 from inference.fusion_engine import FusionEngine
-
 
 
 class FusionIDS:
 
     def __init__(self):
-        self.signature = SignatureIDSPredictor()
-        self.anomaly = AnomalyDetector()
+
+        print("[INFO] Initializing FusionIDS pipeline...")
+
+        self.signature = SignaturePredictor()
+        self.anomaly = AnomalyPredictor()
         self.fusion = FusionEngine()
 
+    def predict(self, flow):
 
-    def analyze_flow(self,flow:dict):
+        sig_result = self.signature.predict(flow)
+        anomaly_result = self.anomaly.predict(flow)
 
-        sig_result =self.signature.predict(flow)
-        anomaly_result = self.anomaly.detect(flow)
+        alert = self.fusion.fuse(sig_result, anomaly_result)
 
-        alert = self.fusion.fuse(sig_result,anomaly_result)
-
-        return alert
+        return {
+            "signature": sig_result,
+            "anomaly": anomaly_result,
+            "alert": alert
+        }
