@@ -1,0 +1,16 @@
+# updated_model/requirements.txt
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.0.0
+requests>=2.31.0
+
+# ML / inference
+scikit-learn>=1.4.0
+xgboost>=2.0.0
+lightgbm>=4.3.0
+numpy>=1.26.0
+pandas>=2.2.0
+joblib>=1.3.0
+
+# Add any extra libs your FusionIDS / anomaly_detector needs below
+# e.g. torch>=2.2.0  (if using neural anomaly detector)
