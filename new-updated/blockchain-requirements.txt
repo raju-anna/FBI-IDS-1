@@ -1,0 +1,9 @@
+# updated_blockchain/requirements.txt
+flask>=3.0.0
+requests>=2.31.0
+
+# Cryptography for PBFT signing / key generation
+cryptography>=42.0.0
+
+# SQLite is built into Python — no extra package needed for db.py
+# If you switched to PostgreSQL or another DB, add the driver here.
