@@ -1,0 +1,42 @@
+# ── Stage 1: Build ────────────────────────────────────────────────────────────
+FROM ubuntu:22.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    pkg-config \
+    libpcap-dev \
+    libssl-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY traffic_capturer_updated/ .
+
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build --parallel "$(nproc)"
+
+# ── Stage 2: Runtime ──────────────────────────────────────────────────────────
+FROM ubuntu:22.04 AS runtime
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpcap0.8 \
+    libssl3 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=builder /app/build/ids ./ids
+COPY traffic_capturer_updated/test-pcaps/ ./test-pcaps/
+
+# ML server endpoint — override at runtime via env var or docker-compose
+ENV ML_SERVER_URL=http://ml-server:8000
+
+# NET_RAW + NET_ADMIN capabilities are granted in docker-compose.yml
+# The container must be run with --network host OR a macvlan for live capture
+
+ENTRYPOINT ["./ids"]
