@@ -1,0 +1,38 @@
+# ── ML Inference Server ───────────────────────────────────────────────────────
+FROM python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements first for better layer caching
+COPY updated_model/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the full model directory
+COPY updated_model/ .
+
+# ── Model files ───────────────────────────────────────────────────────────────
+# Trained model files (.pkl / .joblib / .pt) are NOT in the repo.
+# Mount them at runtime via a Docker volume, e.g.:
+#   docker-compose.yml:  - ./models:/app/models:ro
+# OR copy them into the image at build time by placing them in
+# updated_model/models/ before running docker build.
+# The path below is what FusionIDS expects — adjust if yours differs.
+# COPY models/ ./models/     ← uncomment if baking models into the image
+
+# Blockchain node URL — injected by docker-compose
+ENV BLOCKCHAIN_NODE_URL=http://blockchain-node-0:5000
+
+EXPOSE 8000
+
+# Run from inference/ so relative imports work
+WORKDIR /app/inference
+CMD ["python", "ml_server.py", "--host", "0.0.0.0", "--port", "8000"]
