@@ -1,0 +1,173 @@
+version: "3.9"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  FusionIDS — docker-compose.yml
+#
+#  Services:
+#    capturer          — C++ libpcap packet capturer + flow generator
+#    ml-server         — FastAPI FusionIDS inference server (port 8000)
+#    blockchain-node-0 — PBFT node 0, primary / leader  (port 5000)
+#    blockchain-node-1 — PBFT node 1                    (port 5001)
+#    blockchain-node-2 — PBFT node 2                    (port 5002)
+#    blockchain-node-3 — PBFT node 3                    (port 5003)
+#
+#  Quick start:
+#    1. Place trained model files in ./models/
+#    2. cp .env.example .env  and edit values
+#    3. docker compose up --build
+# ═══════════════════════════════════════════════════════════════════════════════
+
+networks:
+  ids-net:
+    driver: bridge
+
+volumes:
+  bc-node-0-db:
+  bc-node-1-db:
+  bc-node-2-db:
+  bc-node-3-db:
+  model-files:        # mount your trained .pkl/.joblib files here
+
+services:
+
+  # ── ML Inference Server ───────────────────────────────────────────────────
+  ml-server:
+    build:
+      context: .
+      dockerfile: updated_model/Dockerfile
+    image: fusionids/ml-server:latest
+    container_name: ml-server
+    restart: unless-stopped
+    environment:
+      # Node 0 is the "local" blockchain node for the ML server.
+      # Alerts from the ML server are forwarded here first.
+      BLOCKCHAIN_NODE_URL: http://blockchain-node-0:5000
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount your trained model files here (read-only)
+      # Place .pkl / .joblib / .pt files in ./models/ on your host
+      - ./models:/app/models:ro
+    networks:
+      - ids-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s   # give models time to load
+
+  # ── C++ Packet Capturer ───────────────────────────────────────────────────
+  capturer:
+    build:
+      context: .
+      dockerfile: traffic_capturer_updated/Dockerfile
+    image: fusionids/capturer:latest
+    container_name: capturer
+    restart: unless-stopped
+    depends_on:
+      ml-server:
+        condition: service_healthy
+    environment:
+      ML_SERVER_URL: http://ml-server:8000
+    # Live packet capture requires host networking + capabilities.
+    # Remove network_mode and cap_add if you only need pcap-file replay.
+    network_mode: host          # must see the physical NIC
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    # If running in host-network mode the ids-net bridge isn't reachable
+    # by name — the capturer reaches ml-server via 127.0.0.1:8000 instead.
+    # Override ML_SERVER_URL accordingly:
+    # environment:
+    #   ML_SERVER_URL: http://127.0.0.1:8000
+
+  # ── Blockchain Node 0 (leader) ────────────────────────────────────────────
+  blockchain-node-0:
+    build:
+      context: .
+      dockerfile: updated_blockchain/Dockerfile
+    image: fusionids/blockchain-node:latest
+    container_name: blockchain-node-0
+    restart: unless-stopped
+    environment:
+      NODE_ID: "0"
+      # Override peer URLs so they resolve via docker service names
+      PEER_1_URL: http://blockchain-node-1:5001
+      PEER_2_URL: http://blockchain-node-2:5002
+      PEER_3_URL: http://blockchain-node-3:5003
+      ML_SERVER_URL: http://ml-server:8000
+    ports:
+      - "5000:5000"
+    volumes:
+      - bc-node-0-db:/app/database
+    networks:
+      - ids-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Blockchain Node 1 ─────────────────────────────────────────────────────
+  blockchain-node-1:
+    build:
+      context: .
+      dockerfile: updated_blockchain/Dockerfile
+    image: fusionids/blockchain-node:latest
+    container_name: blockchain-node-1
+    restart: unless-stopped
+    environment:
+      NODE_ID: "1"
+      PEER_0_URL: http://blockchain-node-0:5000
+      PEER_2_URL: http://blockchain-node-2:5002
+      PEER_3_URL: http://blockchain-node-3:5003
+      ML_SERVER_URL: http://ml-server:8000
+    ports:
+      - "5001:5001"
+    volumes:
+      - bc-node-1-db:/app/database
+    networks:
+      - ids-net
+
+  # ── Blockchain Node 2 ─────────────────────────────────────────────────────
+  blockchain-node-2:
+    build:
+      context: .
+      dockerfile: updated_blockchain/Dockerfile
+    image: fusionids/blockchain-node:latest
+    container_name: blockchain-node-2
+    restart: unless-stopped
+    environment:
+      NODE_ID: "2"
+      PEER_0_URL: http://blockchain-node-0:5000
+      PEER_1_URL: http://blockchain-node-1:5001
+      PEER_3_URL: http://blockchain-node-3:5003
+      ML_SERVER_URL: http://ml-server:8000
+    ports:
+      - "5002:5002"
+    volumes:
+      - bc-node-2-db:/app/database
+    networks:
+      - ids-net
+
+  # ── Blockchain Node 3 ─────────────────────────────────────────────────────
+  blockchain-node-3:
+    build:
+      context: .
+      dockerfile: updated_blockchain/Dockerfile
+    image: fusionids/blockchain-node:latest
+    container_name: blockchain-node-3
+    restart: unless-stopped
+    environment:
+      NODE_ID: "3"
+      PEER_0_URL: http://blockchain-node-0:5000
+      PEER_1_URL: http://blockchain-node-1:5001
+      PEER_2_URL: http://blockchain-node-2:5002
+      ML_SERVER_URL: http://ml-server:8000
+    ports:
+      - "5003:5003"
+    volumes:
+      - bc-node-3-db:/app/database
+    networks:
+      - ids-net
