@@ -1,0 +1,32 @@
+# ── Blockchain Node ───────────────────────────────────────────────────────────
+FROM python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY updated_blockchain/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY updated_blockchain/ .
+
+# SQLite DB files will be written here — mount a named volume
+RUN mkdir -p /app/database
+
+# NODE_ID is set per-container in docker-compose (0, 1, 2, 3)
+# Peer URLs are resolved via docker-compose service names, so
+# config.py's localhost:500X must be overridden by the entrypoint below.
+ENV NODE_ID=0
+
+# Port is derived from NODE_ID: 5000 + NODE_ID
+# All four ports are exposed; docker-compose only publishes the needed ones.
+EXPOSE 5000 5001 5002 5003
+
+# Entrypoint reads NODE_ID env var so docker-compose only needs to set that.
+CMD python run_node.py ${NODE_ID}
